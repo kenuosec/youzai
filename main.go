@@ -36,7 +36,7 @@ func banner() {
 
 // 生成目标信息
 func target_Info() {
-	url := "http://localhost/wordpress"
+	url := "https://212.35.103.196"
 	userAgent := "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/14.0.835.163 Safari/535.1"
 	active.Target.Target_url = url
 	active.Target.User_agent = userAgent
@@ -45,7 +45,7 @@ func target_Info() {
 // 执行扫描
 func active_Check() {
 	active.PocInit()
-	active.XSS_Check_Http(1, false, "")
+	active.XSS_Check_Http(5, true, "http://127.0.0.1:8888") // 对于网络不好的情况，超时时间应该设置长一些
 }
 
 // 扫描器入口

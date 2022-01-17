@@ -182,6 +182,8 @@ func XSS_Check_Http(timeout int, proxy bool, proxy_url string) { // 第一个参
 								} else {
 									Target.Vulns = append(Target.Vulns, xss_poc)
 								}
+							} else {
+								continue
 							}
 						}
 					} else {
