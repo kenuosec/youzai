@@ -45,7 +45,7 @@ func target_Info() {
 // 执行扫描
 func active_Check() {
 	active.PocInit()
-	active.XSS_Check_Http(1, true, "http://127.0.0.1:8888")
+	active.XSS_Check_Http(1, false, "")
 }
 
 // 扫描器入口
