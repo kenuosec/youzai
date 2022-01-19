@@ -2,6 +2,7 @@ package active
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -130,6 +131,7 @@ func Scan() {
 }
 
 func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_url string) { // 第一个参数设置请求超时时间，第二个参数设置是否使用代理，第三个参数设置代理的url
+	fmt.Println("加载的poc数量：", len(xss_poc_all))
 	// 设置请求属性
 	transport := &http.Transport{
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // 取消证书认证
@@ -171,17 +173,13 @@ func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_ur
 					} else {
 						defer response.Body.Close()
 						body, _ := ioutil.ReadAll(response.Body)
-						// 判断是否有多个code和多个word
-						code := xss_poc.Poc.Code[0]
+						// 判断是否有多个word
 						word := xss_poc.Poc.Word[0]
-						if len(xss_poc.Poc.Code) > 1 {
-							code = xss_poc.Poc.Code[i]
-						}
 						if len(xss_poc.Poc.Word) > 1 {
 							word = xss_poc.Poc.Word[i]
 						}
 
-						if response.StatusCode == code && strings.Contains(string(body), word) {
+						if strings.Contains(string(body), word) {
 							Target.Vulns = append(Target.Vulns, xss_poc)
 						} else {
 							continue
@@ -211,17 +209,12 @@ func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_ur
 					} else {
 						defer response.Body.Close()
 						body, _ := ioutil.ReadAll(response.Body)
-						// 判断是否有多个code和多个word
-						code := xss_poc.Poc.Code[0]
-						word := xss_poc.Poc.Data[0]
-						if len(xss_poc.Poc.Code) > 1 {
-							code = xss_poc.Poc.Code[i]
-						}
+						// 判断是否有多个word
+						word := xss_poc.Poc.Word[0]
 						if len(xss_poc.Poc.Word) > 1 {
 							word = xss_poc.Poc.Word[i]
 						}
-
-						if response.StatusCode == code && strings.Contains(string(body), word) {
+						if strings.Contains(string(body), word) {
 							Target.Vulns = append(Target.Vulns, xss_poc)
 						} else {
 							continue

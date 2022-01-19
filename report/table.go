@@ -37,6 +37,9 @@ func OutTable() {
 				}
 			}
 		}(length_all)
+		if maxVal < 10 {
+			maxVal = 10
+		}
 		return maxVal + 2
 	}()
 
@@ -54,6 +57,9 @@ func OutTable() {
 				}
 			}
 		}(length_all)
+		if maxVal < 8 {
+			maxVal = 8
+		}
 		return maxVal + 2
 	}()
 

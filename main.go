@@ -36,7 +36,7 @@ func banner() {
 
 // 生成目标信息
 func target_Info() {
-	url := "http://192.168.65.129:8000"
+	url := "http://192.168.65.128/yzmcms"
 	userAgent := "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.1 (KHTML, like Gecko) Chrome/14.0.835.163 Safari/535.1"
 
 	active.Target.Target_Url = url
