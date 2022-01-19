@@ -13,8 +13,11 @@ import (
 
 // 用于存取目标扫描的信息
 type Target_Info struct {
-	Target_url string        // 目标的url
-	User_agent string        // 存放agent
+	Target_Url string        // 目标的url
+	User_Agent string        // 存放agent
+	Timeout    int           // 请求的超时时间
+	Proxy      bool          // 是否使用代理
+	Proxy_Url  string        // 代理的url
 	Vulns      []poc.PocInfo // 存放漏洞信息
 }
 
@@ -49,6 +52,15 @@ var Target = &Target_Info{} // 实例化用于存储扫描结果的对象
 // 此函数适用于快捷性
 // 此函数用于生成所有poc
 func PocInit() { // 用于保存方法名
+	// 设置自定义poc的配置
+	func() {
+		poc.PocCustomize.Config.Url = Target.Target_Url
+		poc.PocCustomize.Config.User_Agent = Target.User_Agent
+		poc.PocCustomize.Config.Timeout = Target.Timeout
+		poc.PocCustomize.Config.Proxy = Target.Proxy
+		poc.PocCustomize.Config.Proxy_Url = Target.Proxy_Url
+	}()
+
 	pocStruct := &poc.PocInfo{} // 实例化一个poc结构体，主要用于通过反射调用poc结构体内的方法
 	pocReflect := reflect.ValueOf(pocStruct)
 
@@ -110,7 +122,14 @@ func PocInit() { // 用于保存方法名
 // 	}
 // }
 
-func XSS_Check_Http(timeout int, proxy bool, proxy_url string) { // 第一个参数设置请求超时时间，第二个参数设置是否使用代理，第三个参数设置代理的url
+// 扫描入口
+func Scan() {
+	if xss_poc_all, ok := poc.PocMap["XSS"]; ok {
+		XSS_Check_Http(xss_poc_all, Target.Timeout, Target.Proxy, Target.Proxy_Url)
+	}
+}
+
+func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_url string) { // 第一个参数设置请求超时时间，第二个参数设置是否使用代理，第三个参数设置代理的url
 	// 设置请求属性
 	transport := &http.Transport{
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // 取消证书认证
@@ -128,126 +147,138 @@ func XSS_Check_Http(timeout int, proxy bool, proxy_url string) { // 第一个参
 	cli := &http.Client{
 		Transport: transport,
 	}
-
-	// 获取所有类型为XSS的poc
-	if xss_poc_all, ok := poc.PocMap["XSS"]; ok {
-		for _, xss_poc := range xss_poc_all {
-			request := func(method_all []string, path_all []string, data_all []string, code_all []int, word_all []string, is_retry bool) {
-				for i := range method_all {
-					if method_all[i] == "GET" { // GET方法
-						request, err := http.NewRequest(method_all[i], Target.Target_url+path_all[i], nil)
-						if err != nil {
-							return
+	for _, xss_poc := range xss_poc_all {
+		if xss_poc.Config.Customize { //判断是否是自定义poc
+			check := xss_poc.Config.Check
+			if check() {
+				Target.Vulns = append(Target.Vulns, xss_poc)
+			}
+		} else { // 模板poc检测规则
+			if xss_poc.Poc.Method == "GET" { // GET方法
+				for i, path := range xss_poc.Poc.Path {
+					request, err := http.NewRequest(xss_poc.Poc.Method, Target.Target_Url+path, nil)
+					if err != nil {
+						continue
+					}
+					request.Header.Add("User-Agent", Target.User_Agent) // 设置User-Agent
+					if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
+						for header, value := range xss_poc.Poc.Header {
+							request.Header.Add(header, value)
 						}
-						request.Header.Add("User-Agent", Target.User_agent) // 设置User-Agent
-						if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
-							for header, value := range xss_poc.Poc.Header {
-								request.Header.Add(header, value)
-							}
-						}
-						if response, err := cli.Do(request); err != nil { // 发起http请求
-							return
-						} else {
-							defer response.Body.Close()
-							body, _ := ioutil.ReadAll(response.Body)
-							if response.StatusCode == code_all[i] && strings.Contains(string(body), word_all[i]) {
-								if is_retry {
-									continue
-								} else {
-									Target.Vulns = append(Target.Vulns, xss_poc)
-								}
-							} else {
-								continue
-							}
-						}
-					} else if method_all[i] == "POST" { // POST方法
-						request, err := http.NewRequest(method_all[i], Target.Target_url+path_all[i], strings.NewReader(data_all[i]))
-						if err != nil {
-							return
-						}
-						request.Header.Add("User-Agent", Target.User_agent) // 设置User-Agent
-						if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
-							for header, value := range xss_poc.Poc.Header {
-								request.Header.Add(header, value)
-							}
-						}
-						if response, err := cli.Do(request); err != nil { // 发起http请求
-							return
-						} else {
-							defer response.Body.Close()
-							body, _ := ioutil.ReadAll(response.Body)
-							if response.StatusCode == code_all[i] && strings.Contains(string(body), word_all[i]) {
-								if is_retry {
-									continue
-								} else {
-									Target.Vulns = append(Target.Vulns, xss_poc)
-								}
-							} else {
-								continue
-							}
-						}
+					}
+					if response, err := cli.Do(request); err != nil { // 发起http请求
+						continue
 					} else {
-						return
+						defer response.Body.Close()
+						body, _ := ioutil.ReadAll(response.Body)
+						// 判断是否有多个code和多个word
+						code := xss_poc.Poc.Code[0]
+						word := xss_poc.Poc.Word[0]
+						if len(xss_poc.Poc.Code) > 1 {
+							code = xss_poc.Poc.Code[i]
+						}
+						if len(xss_poc.Poc.Word) > 1 {
+							word = xss_poc.Poc.Word[i]
+						}
+
+						if response.StatusCode == code && strings.Contains(string(body), word) {
+							Target.Vulns = append(Target.Vulns, xss_poc)
+						} else {
+							continue
+						}
 					}
 				}
+			} else if xss_poc.Poc.Method == "POST" { // POST方法
+				for i, path := range xss_poc.Poc.Path {
+					// 判断数据包是否多个
+					data := xss_poc.Poc.Data[0]
+					if len(xss_poc.Poc.Data) > 1 {
+						data = xss_poc.Poc.Data[i]
+					}
 
+					request, err := http.NewRequest(xss_poc.Poc.Method, Target.Target_Url+path, strings.NewReader(data))
+					if err != nil {
+						continue
+					}
+					request.Header.Add("User-Agent", Target.User_Agent) // 设置User-Agent
+					if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
+						for header, value := range xss_poc.Poc.Header {
+							request.Header.Add(header, value)
+						}
+					}
+					if response, err := cli.Do(request); err != nil { // 发起http请求
+						continue
+					} else {
+						defer response.Body.Close()
+						body, _ := ioutil.ReadAll(response.Body)
+						// 判断是否有多个code和多个word
+						code := xss_poc.Poc.Code[0]
+						word := xss_poc.Poc.Data[0]
+						if len(xss_poc.Poc.Code) > 1 {
+							code = xss_poc.Poc.Code[i]
+						}
+						if len(xss_poc.Poc.Word) > 1 {
+							word = xss_poc.Poc.Word[i]
+						}
+
+						if response.StatusCode == code && strings.Contains(string(body), word) {
+							Target.Vulns = append(Target.Vulns, xss_poc)
+						} else {
+							continue
+						}
+					}
+				}
+			} else {
+				return
 			}
-
-			// 判断是否需要多次请求
-			if xss_poc.Config.Retry {
-				request(xss_poc.Config.Retry_Method, xss_poc.Config.Retry_Path, xss_poc.Config.Retry_Data, xss_poc.Config.Retry_Code, xss_poc.Config.Retry_Word, true)
-			}
-
-			// 发起请求
-			request(xss_poc.Poc.Method, xss_poc.Poc.Path, xss_poc.Poc.Data, xss_poc.Poc.Code, xss_poc.Poc.Word, false)
-
-			// if xss_poc.Poc.Method == "GET" { // GET方法
-			// 	for _, path := range xss_poc.Poc.Path {
-			// 		request, err := http.NewRequest(xss_poc.Poc.Method, Target.Target_url+path, nil)
-			// 		if err != nil {
-			// 			return
-			// 		}
-			// 		request.Header.Add("User-Agent", Target.User_agent) // 设置User-Agent
-			// 		if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
-			// 			for header, value := range xss_poc.Poc.Header {
-			// 				request.Header.Add(header, value)
-			// 			}
-			// 		}
-			// 		if response, err := cli.Do(request); err != nil { // 发起http请求
-			// 			return
-			// 		} else {
-			// 			defer response.Body.Close()
-			// 			body, _ := ioutil.ReadAll(response.Body)
-			// 			if strings.Contains(string(body), xss_poc.Poc.Word) {
-			// 				Target.Vulns = append(Target.Vulns, xss_poc)
-			// 			}
-			// 		}
-			// 	}
-			// } else if xss_poc.Poc.Method == "POST" { // POST方法
-			// 	for _, path := range xss_poc.Poc.Path {
-			// 		request, err := http.NewRequest(xss_poc.Poc.Method, Target.Target_url+path, strings.NewReader(xss_poc.Poc.Data))
-			// 		if err != nil {
-			// 			return
-			// 		}
-			// 		request.Header.Add("User-Agent", Target.User_agent) // 设置User-Agent
-			// 		if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
-			// 			for header, value := range xss_poc.Poc.Header {
-			// 				request.Header.Add(header, value)
-			// 			}
-			// 		}
-			// 		if response, err := cli.Do(request); err != nil { // 发起http请求
-			// 			return
-			// 		} else {
-			// 			defer response.Body.Close()
-			// 			body, _ := ioutil.ReadAll(response.Body)
-			// 			if strings.Contains(string(body), xss_poc.Poc.Word) {
-			// 				Target.Vulns = append(Target.Vulns, xss_poc)
-			// 			}
-			// 		}
-			// 	}
-			// } else {
-			// 	return
-			// }
 		}
+
+		// if xss_poc.Poc.Method == "GET" { // GET方法
+		// 	for _, path := range xss_poc.Poc.Path {
+		// 		request, err := http.NewRequest(xss_poc.Poc.Method, Target.Target_url+path, nil)
+		// 		if err != nil {
+		// 			return
+		// 		}
+		// 		request.Header.Add("User-Agent", Target.User_agent) // 设置User-Agent
+		// 		if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
+		// 			for header, value := range xss_poc.Poc.Header {
+		// 				request.Header.Add(header, value)
+		// 			}
+		// 		}
+		// 		if response, err := cli.Do(request); err != nil { // 发起http请求
+		// 			return
+		// 		} else {
+		// 			defer response.Body.Close()
+		// 			body, _ := ioutil.ReadAll(response.Body)
+		// 			if strings.Contains(string(body), xss_poc.Poc.Word) {
+		// 				Target.Vulns = append(Target.Vulns, xss_poc)
+		// 			}
+		// 		}
+		// 	}
+		// } else if xss_poc.Poc.Method == "POST" { // POST方法
+		// 	for _, path := range xss_poc.Poc.Path {
+		// 		request, err := http.NewRequest(xss_poc.Poc.Method, Target.Target_url+path, strings.NewReader(xss_poc.Poc.Data))
+		// 		if err != nil {
+		// 			return
+		// 		}
+		// 		request.Header.Add("User-Agent", Target.User_agent) // 设置User-Agent
+		// 		if len(xss_poc.Poc.Header) != 0 {                   // 获取poc中的header
+		// 			for header, value := range xss_poc.Poc.Header {
+		// 				request.Header.Add(header, value)
+		// 			}
+		// 		}
+		// 		if response, err := cli.Do(request); err != nil { // 发起http请求
+		// 			return
+		// 		} else {
+		// 			defer response.Body.Close()
+		// 			body, _ := ioutil.ReadAll(response.Body)
+		// 			if strings.Contains(string(body), xss_poc.Poc.Word) {
+		// 				Target.Vulns = append(Target.Vulns, xss_poc)
+		// 			}
+		// 		}
+		// 	}
+		// } else {
+		// 	return
+		// }
 	}
 }

@@ -1,9 +1,12 @@
 package poc
 
+var PocCustomize = PocInfo{} // 存储自定义poc的Config信息
+
 var PocStruct = []PocInfo{} // 存储所有poc信息的结构体，调用PocInit()函数后，所有的操作将使用该结构体数组中的poc
 
 var PocMap = make(map[string][]PocInfo) // 按照漏洞类型，存储所有poc信息的结构体分类
 
+// 模板poc扫描结构体
 type PocInfo struct {
 	// poc描述信息
 	Info struct {
@@ -17,7 +20,7 @@ type PocInfo struct {
 	// poc规则
 	Poc struct {
 		Proto  string            `json:"proto"`  // 请求的协议
-		Method []string          `json:"method"` // 请求方法
+		Method string            `json:"method"` // 请求方法
 		Path   []string          `json:"path"`   // 请求的路径
 		Param  []string          `json:"param"`  // 请求的参数信息
 		Header map[string]string `json:"header"` // http头部信息
@@ -27,13 +30,12 @@ type PocInfo struct {
 	} `json:"poc"`
 	// poc配置
 	Config struct {
-		Retry        bool     `json:"retry"`        // 是否需要多次请求
-		Retry_catch  bool     `json:"retry_catch"`  // 是否需要获取响应包中的数据
-		Retry_Proto  string   `json:"retry_proto"`  // 请求的协议
-		Retry_Method []string `json:"retry_method"` // 请求的方法
-		Retry_Path   []string `json:"retry_path"`   // 请求的路径
-		Retry_Data   []string `json:"retry_data"`   // 请求的数据
-		Retry_Code   []int    `json:"retry_code"`   // 请求后的状态码
-		Retry_Word   []string `json:"retry_word"`   // 请求后需要匹配的字段
+		Customize  bool        `json:"customize"`  // 是否是自定义poc
+		Url        string      `json:"url"`        // 请求的url
+		Timeout    int         `json:"timeout"`    // 请求的超时时间
+		User_Agent string      `json:"user_agent"` // 请求的User_Agent信息
+		Proxy      bool        `json:"proxy"`      // 是否使用代理
+		Proxy_Url  string      `json:"proxy_url"`  // 代理的url
+		Check      func() bool `json:"check"`      // poc函数
 	}
 }
