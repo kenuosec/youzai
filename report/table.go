@@ -71,6 +71,7 @@ func OutTable() {
 	line()
 
 	for _, poc := range active.Target.Vulns {
+
 		// 打印漏洞信息
 		func() {
 			color.Yellowln(signs[2], active.Target.Target_Url, strings.Repeat(" ", target_url_length-(len(active.Target.Target_Url)+1)), signs[2], poc.Info.Name, strings.Repeat(" ", target_vuln_name_length-(len(poc.Info.Name)+1)), signs[2], poc.Info.ID, strings.Repeat(" ", target_vuln_id_length-(len(poc.Info.ID)+1)), signs[2], poc.Info.Level, strings.Repeat(" ", target_vuln_level_length-2), signs[2])
