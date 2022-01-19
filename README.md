@@ -10,7 +10,7 @@
 > 2022/1/19  
 > 优化代码结构，加入自定义poc模板(CVE-2017-12794)
 
-```mermind
+
 gantt
     title A Gantt Diagram
     dateFormat  YYYY-MM-DD
@@ -21,4 +21,3 @@ gantt
     Task in sec      :2014-01-12  , 12d
     another task      : 24d
    
-```
