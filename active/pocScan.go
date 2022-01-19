@@ -148,6 +148,9 @@ func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_ur
 	// 生成http客户端
 	cli := &http.Client{
 		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { // 不进入重定向
+			return http.ErrUseLastResponse
+		},
 	}
 	for _, xss_poc := range xss_poc_all {
 		if xss_poc.Config.Customize { //判断是否是自定义poc
