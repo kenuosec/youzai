@@ -37,5 +37,5 @@ type PocInfo struct {
 		Proxy      bool        `json:"proxy"`      // 是否使用代理
 		Proxy_Url  string      `json:"proxy_url"`  // 代理的url
 		Check      func() bool `json:"check"`      // poc函数
-	}
+	} `json:"config"`
 }
