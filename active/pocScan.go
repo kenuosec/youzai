@@ -126,12 +126,12 @@ func PocInit() { // 用于保存方法名
 // 扫描入口
 func Scan() {
 	if xss_poc_all, ok := poc.PocMap["XSS"]; ok {
-		XSS_Check_Http(xss_poc_all, Target.Timeout, Target.Proxy, Target.Proxy_Url)
+		XSS_Check(xss_poc_all, Target.Timeout, Target.Proxy, Target.Proxy_Url)
 	}
 }
 
-func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_url string) { // 第一个参数设置请求超时时间，第二个参数设置是否使用代理，第三个参数设置代理的url
-	fmt.Println("加载的poc数量：", len(xss_poc_all))
+// 生成http客户端
+func Http_Client(timeout int, proxy bool, proxy_url string) *http.Client {
 	// 设置请求属性
 	transport := &http.Transport{
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // 取消证书认证
@@ -152,6 +152,15 @@ func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_ur
 			return http.ErrUseLastResponse
 		},
 	}
+	return cli
+}
+
+// XSS检测函数
+func XSS_Check(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_url string) { // 第一个参数设置请求超时时间，第二个参数设置是否使用代理，第三个参数设置代理的url
+	fmt.Println("加载的XSS检测poc数量：", len(xss_poc_all))
+
+	cli := Http_Client(timeout, proxy, proxy_url)
+
 	for _, xss_poc := range xss_poc_all {
 		if xss_poc.Config.Customize { //判断是否是自定义poc
 			check := xss_poc.Config.Check
@@ -276,5 +285,103 @@ func XSS_Check_Http(xss_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_ur
 		// } else {
 		// 	return
 		// }
+	}
+}
+
+// INFO检测函数
+func INFO_Check(info_poc_all []poc.PocInfo, timeout int, proxy bool, proxy_url string) {
+	fmt.Println("加载的INFO检测poc数量：", len(info_poc_all))
+
+	cli := Http_Client(timeout, proxy, proxy_url)
+
+	for _, info_poc := range info_poc_all {
+		if info_poc.Config.Customize {
+			check := info_poc.Config.Check
+			if check() {
+				Target.Vulns = append(Target.Vulns, info_poc)
+			}
+		} else {
+			if info_poc.Poc.Method == "GET" { // GET方法
+				for _, path := range info_poc.Poc.Path {
+					request, err := http.NewRequest(info_poc.Poc.Method, Target.Target_Url+path, nil)
+					if err != nil {
+						continue
+					}
+					request.Header.Add("User-Agent", Target.User_Agent) // 设置User-Agent
+					if len(info_poc.Poc.Header) != 0 {                  // 获取poc中的header
+						for header, value := range info_poc.Poc.Header {
+							request.Header.Add(header, value)
+						}
+					}
+					if response, err := cli.Do(request); err != nil { // 发起http请求
+						continue
+					} else {
+						defer response.Body.Close()
+						body, _ := ioutil.ReadAll(response.Body)
+						// 判断是否有多个word
+						if len(info_poc.Poc.Word) == 1 {
+							word := info_poc.Poc.Word[0]
+							if strings.Contains(string(body), word) {
+								Target.Vulns = append(Target.Vulns, info_poc)
+							} else {
+								continue
+							}
+						} else {
+							for _, word := range info_poc.Poc.Word {
+								if strings.Contains(string(body), word) {
+									Target.Vulns = append(Target.Vulns, info_poc)
+								} else {
+									continue
+								}
+							}
+						}
+					}
+				}
+			} else if info_poc.Poc.Method == "POST" { // POST方法
+				for i, path := range info_poc.Poc.Path {
+					// 判断数据包是否多个
+					data := info_poc.Poc.Data[0]
+					if len(info_poc.Poc.Data) > 1 {
+						data = info_poc.Poc.Data[i]
+					}
+
+					request, err := http.NewRequest(info_poc.Poc.Method, Target.Target_Url+path, strings.NewReader(data))
+					if err != nil {
+						continue
+					}
+					request.Header.Add("User-Agent", Target.User_Agent) // 设置User-Agent
+					if len(info_poc.Poc.Header) != 0 {                  // 获取poc中的header
+						for header, value := range info_poc.Poc.Header {
+							request.Header.Add(header, value)
+						}
+					}
+					if response, err := cli.Do(request); err != nil { // 发起http请求
+						continue
+					} else {
+						defer response.Body.Close()
+						body, _ := ioutil.ReadAll(response.Body)
+						// 判断是否有多个word
+						if len(info_poc.Poc.Word) == 1 {
+							word := info_poc.Poc.Word[0]
+							if strings.Contains(string(body), word) {
+								Target.Vulns = append(Target.Vulns, info_poc)
+							} else {
+								continue
+							}
+						} else {
+							for _, word := range info_poc.Poc.Word {
+								if strings.Contains(string(body), word) {
+									Target.Vulns = append(Target.Vulns, info_poc)
+								} else {
+									continue
+								}
+							}
+						}
+					}
+				}
+			} else {
+				return
+			}
+		}
 	}
 }
